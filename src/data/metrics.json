@@ -2,97 +2,157 @@
   {
     "month": "2025-01",
     "label": "Jan",
-    "revenue": 42180,
-    "visitors": 18420,
-    "conversions": 2.82,
-    "orders": 520
+    "shipmentVolume": 1120,
+    "onTimeDeliveryRate": 91.2,
+    "regionalPerformance": {
+      "North": 310,
+      "South": 270,
+      "East": 260,
+      "West": 280
+    },
+    "openExceptions": 142
   },
   {
     "month": "2025-02",
     "label": "Feb",
-    "revenue": 44650,
-    "visitors": 17950,
-    "conversions": 3.09,
-    "orders": 555
+    "shipmentVolume": 1185,
+    "onTimeDeliveryRate": 92.1,
+    "regionalPerformance": {
+      "North": 328,
+      "South": 285,
+      "East": 271,
+      "West": 301
+    },
+    "openExceptions": 133
   },
   {
     "month": "2025-03",
     "label": "Mar",
-    "revenue": 48920,
-    "visitors": 19830,
-    "conversions": 2.90,
-    "orders": 575
+    "shipmentVolume": 1240,
+    "onTimeDeliveryRate": 90.4,
+    "regionalPerformance": {
+      "North": 344,
+      "South": 298,
+      "East": 286,
+      "West": 312
+    },
+    "openExceptions": 151
   },
   {
     "month": "2025-04",
     "label": "Apr",
-    "revenue": 51340,
-    "visitors": 21150,
-    "conversions": 3.30,
-    "orders": 698
+    "shipmentVolume": 1295,
+    "onTimeDeliveryRate": 93.6,
+    "regionalPerformance": {
+      "North": 352,
+      "South": 311,
+      "East": 299,
+      "West": 333
+    },
+    "openExceptions": 124
   },
   {
     "month": "2025-05",
     "label": "May",
-    "revenue": 54780,
-    "visitors": 23640,
-    "conversions": 3.00,
-    "orders": 709
+    "shipmentVolume": 1370,
+    "onTimeDeliveryRate": 94.2,
+    "regionalPerformance": {
+      "North": 375,
+      "South": 326,
+      "East": 316,
+      "West": 353
+    },
+    "openExceptions": 116
   },
   {
     "month": "2025-06",
     "label": "Jun",
-    "revenue": 58210,
-    "visitors": 27890,
-    "conversions": 2.70,
-    "orders": 753
+    "shipmentVolume": 1415,
+    "onTimeDeliveryRate": 89.8,
+    "regionalPerformance": {
+      "North": 386,
+      "South": 337,
+      "East": 329,
+      "West": 363
+    },
+    "openExceptions": 162
   },
   {
     "month": "2025-07",
     "label": "Jul",
-    "revenue": 56490,
-    "visitors": 29420,
-    "conversions": 2.60,
-    "orders": 765
+    "shipmentVolume": 1490,
+    "onTimeDeliveryRate": 95.1,
+    "regionalPerformance": {
+      "North": 404,
+      "South": 354,
+      "East": 346,
+      "West": 386
+    },
+    "openExceptions": 108
   },
   {
     "month": "2025-08",
     "label": "Aug",
-    "revenue": 59830,
-    "visitors": 28150,
-    "conversions": 2.80,
-    "orders": 788
+    "shipmentVolume": 1540,
+    "onTimeDeliveryRate": 96.3,
+    "regionalPerformance": {
+      "North": 421,
+      "South": 365,
+      "East": 355,
+      "West": 399
+    },
+    "openExceptions": 97
   },
   {
     "month": "2025-09",
     "label": "Sep",
-    "revenue": 63720,
-    "visitors": 24320,
-    "conversions": 3.40,
-    "orders": 826
+    "shipmentVolume": 1620,
+    "onTimeDeliveryRate": 93.4,
+    "regionalPerformance": {
+      "North": 438,
+      "South": 382,
+      "East": 372,
+      "West": 428
+    },
+    "openExceptions": 121
   },
   {
     "month": "2025-10",
     "label": "Oct",
-    "revenue": 67510,
-    "visitors": 25890,
-    "conversions": 3.70,
-    "orders": 958
+    "shipmentVolume": 1695,
+    "onTimeDeliveryRate": 97.2,
+    "regionalPerformance": {
+      "North": 457,
+      "South": 398,
+      "East": 388,
+      "West": 452
+    },
+    "openExceptions": 89
   },
   {
     "month": "2025-11",
     "label": "Nov",
-    "revenue": 73940,
-    "visitors": 28470,
-    "conversions": 4.20,
-    "orders": 1196
+    "shipmentVolume": 1760,
+    "onTimeDeliveryRate": 98.1,
+    "regionalPerformance": {
+      "North": 474,
+      "South": 414,
+      "East": 402,
+      "West": 470
+    },
+    "openExceptions": 81
   },
   {
     "month": "2025-12",
     "label": "Dec",
-    "revenue": 79260,
-    "visitors": 30180,
-    "conversions": 4.60,
-    "orders": 1388
+    "shipmentVolume": 1835,
+    "onTimeDeliveryRate": 95.6,
+    "regionalPerformance": {
+      "North": 495,
+      "South": 428,
+      "East": 418,
+      "West": 494
+    },
+    "openExceptions": 104
   }
 ]

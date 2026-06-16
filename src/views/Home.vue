@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Bar, Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
+  type TooltipItem,
   Title,
   Tooltip,
   Legend,
@@ -27,129 +28,210 @@ ChartJS.register(
   Filler,
 )
 
+interface RegionalPerformance {
+  North: number
+  South: number
+  East: number
+  West: number
+}
+
 interface Metric {
   month: string
   label: string
-  revenue: number
-  visitors: number
-  conversions: number
-  orders: number
+  shipmentVolume: number
+  onTimeDeliveryRate: number
+  regionalPerformance: RegionalPerformance
+  openExceptions: number
 }
+
+type RegionName = keyof RegionalPerformance
 
 const data = metrics as Metric[]
 
 const palette = {
-  primary: '#4FD1C5',
-  primarySoft: 'rgba(79, 209, 197, 0.18)',
-  accent: '#7C9EF7',
-  accentSoft: 'rgba(124, 158, 247, 0.22)',
+  shipment: '#5AB8FF',
+  onTime: '#7CE2B3',
+  exceptions: '#F8B47A',
+  north: '#5AB8FF',
+  south: '#7CE2B3',
+  east: '#B8A1FF',
+  west: '#FF8F8F',
   muted: 'rgba(255, 255, 255, 0.08)',
-  mutedStrong: 'rgba(255, 255, 255, 0.55)',
-  grid: 'rgba(255, 255, 255, 0.06)',
+  mutedStrong: 'rgba(255, 255, 255, 0.7)',
+  grid: 'rgba(255, 255, 255, 0.08)',
 }
 
 const ALL = 'all'
-const selected = ref<string>(ALL)
+const selectedMonth = ref<string>(ALL)
 
 const monthOptions = computed(() => [
   { title: 'All months', value: ALL },
-  ...data.map((m) => ({ title: m.label + ' 2025', value: m.month })),
+  ...data.map((m) => ({ title: `${m.label} 2025`, value: m.month })),
 ])
 
-const isAll = computed(() => selected.value === ALL)
+const isAll = computed(() => selectedMonth.value === ALL)
 
-const selectedIndex = computed(() =>
-  isAll.value ? -1 : data.findIndex((m) => m.month === selected.value),
-)
+const selectedIndex = computed(() => {
+  if (isAll.value) return -1
+  return data.findIndex((m) => m.month === selectedMonth.value)
+})
 
 const filtered = computed(() =>
-  isAll.value ? data : data.filter((m) => m.month === selected.value),
+  isAll.value ? data : data.filter((m) => m.month === selectedMonth.value),
 )
-
-const totals = computed(() => {
-  const rows = filtered.value
-  const revenue = rows.reduce((s, r) => s + r.revenue, 0)
-  const visitors = rows.reduce((s, r) => s + r.visitors, 0)
-  const orders = rows.reduce((s, r) => s + r.orders, 0)
-  const conversions = rows.length
-    ? rows.reduce((s, r) => s + r.conversions, 0) / rows.length
-    : 0
-  return { revenue, visitors, orders, conversions }
-})
 
 function pctChange(curr: number, prev: number): number | null {
   if (!prev) return null
   return ((curr - prev) / prev) * 100
 }
 
+function topRegionFromRows(rows: Metric[]): { region: RegionName; count: number } {
+  const totals: RegionalPerformance = { North: 0, South: 0, East: 0, West: 0 }
+
+  for (const row of rows) {
+    totals.North += row.regionalPerformance.North
+    totals.South += row.regionalPerformance.South
+    totals.East += row.regionalPerformance.East
+    totals.West += row.regionalPerformance.West
+  }
+
+  const entries = Object.entries(totals) as [RegionName, number][]
+  const [region, count] = entries.reduce((best, next) =>
+    next[1] > best[1] ? next : best,
+  )
+
+  return { region, count }
+}
+
+const summaryStats = computed(() => {
+  const rows = filtered.value
+  const shipmentVolume = rows.reduce((sum, row) => sum + row.shipmentVolume, 0)
+  const onTimeDeliveryRate = rows.length
+    ? rows.reduce((sum, row) => sum + row.onTimeDeliveryRate, 0) / rows.length
+    : 0
+  const openExceptions = rows.reduce((sum, row) => sum + row.openExceptions, 0)
+  const topRegion = topRegionFromRows(rows)
+
+  return { shipmentVolume, onTimeDeliveryRate, openExceptions, topRegion }
+})
+
 const deltas = computed(() => {
   if (isAll.value || selectedIndex.value <= 0) {
-    return { revenue: null, visitors: null, conversions: null, orders: null }
+    return {
+      shipmentVolume: null,
+      onTimeDeliveryRate: null,
+      topRegionCount: null,
+      openExceptions: null,
+    }
   }
+
   const curr = data[selectedIndex.value]
   const prev = data[selectedIndex.value - 1]
+
+  const currentTop = topRegionFromRows([curr])
+  const previousTop = topRegionFromRows([prev])
+
   return {
-    revenue: pctChange(curr.revenue, prev.revenue),
-    visitors: pctChange(curr.visitors, prev.visitors),
-    conversions: pctChange(curr.conversions, prev.conversions),
-    orders: pctChange(curr.orders, prev.orders),
+    shipmentVolume: pctChange(curr.shipmentVolume, prev.shipmentVolume),
+    onTimeDeliveryRate: pctChange(curr.onTimeDeliveryRate, prev.onTimeDeliveryRate),
+    topRegionCount: pctChange(currentTop.count, previousTop.count),
+    openExceptions: pctChange(curr.openExceptions, prev.openExceptions),
   }
 })
 
-const currencyFmt = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
 const numberFmt = new Intl.NumberFormat('en-US')
+const compactFmt = new Intl.NumberFormat('en-US', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
 
 const summaryCards = computed(() => {
-  const t = totals.value
-  const d = deltas.value
-  const suffix = isAll.value ? ' (FY)' : ''
+  const stats = summaryStats.value
+  const delta = deltas.value
+
   return [
     {
-      key: 'revenue',
-      title: 'Revenue' + suffix,
-      value: currencyFmt.format(t.revenue),
-      icon: 'mdi-currency-usd',
+      key: 'shipmentVolume',
+      title: isAll.value ? 'Shipment Volume (FY)' : 'Shipment Volume',
+      value: compact(stats.shipmentVolume),
+      fullValue: numberFmt.format(stats.shipmentVolume),
+      helper: isAll.value ? '12-month total' : 'This month',
+      icon: 'mdi-truck-fast-outline',
       color: 'primary',
-      delta: d.revenue,
+      delta: delta.shipmentVolume,
     },
     {
-      key: 'visitors',
-      title: 'Visitors' + suffix,
-      value: numberFmt.format(t.visitors),
-      icon: 'mdi-account-group',
-      color: 'secondary',
-      delta: d.visitors,
-    },
-    {
-      key: 'conversions',
-      title: isAll.value ? 'Avg Conversion' : 'Conversion',
-      value: t.conversions.toFixed(2) + '%',
-      icon: 'mdi-target',
-      color: 'info',
-      delta: d.conversions,
-    },
-    {
-      key: 'orders',
-      title: 'Orders' + suffix,
-      value: numberFmt.format(t.orders),
-      icon: 'mdi-cart-outline',
+      key: 'onTimeDeliveryRate',
+      title: isAll.value ? 'On-Time Delivery (Avg)' : 'On-Time Delivery',
+      value: `${stats.onTimeDeliveryRate.toFixed(1)}%`,
+      fullValue: `${stats.onTimeDeliveryRate.toFixed(1)}%`,
+      helper: isAll.value ? 'Yearly average' : 'This month',
+      icon: 'mdi-timer-check-outline',
       color: 'success',
-      delta: d.orders,
+      delta: delta.onTimeDeliveryRate,
+    },
+    {
+      key: 'topRegion',
+      title: 'Top Region',
+      value: `${stats.topRegion.region} (${compact(stats.topRegion.count)})`,
+      fullValue: `${stats.topRegion.region} (${numberFmt.format(stats.topRegion.count)})`,
+      helper: isAll.value ? 'Highest for full year' : 'Highest for selected month',
+      icon: 'mdi-map-marker-radius-outline',
+      color: 'info',
+      delta: delta.topRegionCount,
+    },
+    {
+      key: 'openExceptions',
+      title: isAll.value ? 'Open Exceptions (FY)' : 'Open Exceptions',
+      value: compact(stats.openExceptions),
+      fullValue: numberFmt.format(stats.openExceptions),
+      helper: isAll.value ? '12-month total' : 'Current open exceptions',
+      icon: 'mdi-alert-circle-outline',
+      color: 'warning',
+      delta: delta.openExceptions,
     },
   ]
 })
 
-function deltaIcon(v: number | null) {
+function deltaIcon(v: number | null): string {
   if (v === null) return 'mdi-minus'
   return v >= 0 ? 'mdi-arrow-up' : 'mdi-arrow-down'
 }
-function deltaColor(v: number | null) {
+
+function deltaColor(v: number | null): string {
   if (v === null) return 'grey'
   return v >= 0 ? 'success' : 'error'
+}
+
+function compact(value: number): string {
+  return compactFmt.format(value)
+}
+
+function monthSummaryLine(index: number): string {
+  const row = filtered.value[index]
+  if (!row) return ''
+
+  const topRegion = topRegionFromRows([row])
+  return `Month total ${compact(row.shipmentVolume)} | Top ${topRegion.region} ${compact(topRegion.count)} | Exceptions ${compact(row.openExceptions)}`
+}
+
+function tooltipChip(context: {
+  dataIndex: number
+  dataset: {
+    backgroundColor?: unknown
+    borderColor?: unknown
+  }
+}) {
+  const background = context.dataset.backgroundColor
+  const border = context.dataset.borderColor
+  const arrayColor = Array.isArray(background)
+    ? background[context.dataIndex]
+    : background
+  const color = String(arrayColor ?? border ?? '#9AA4B2')
+  return {
+    backgroundColor: color,
+    borderColor: color,
+  }
 }
 
 const baseChartOptions = {
@@ -173,60 +255,64 @@ const baseChartOptions = {
     },
     y: {
       grid: { color: palette.grid, drawBorder: false },
-      ticks: { color: palette.mutedStrong },
+      ticks: {
+        color: palette.mutedStrong,
+        callback: (v: number | string) => compact(Number(v)),
+      },
     },
   },
 }
 
-const revenueChart = computed(() => {
+const shipmentChart = computed(() => {
   const rows = filtered.value
-  const idx = selectedIndex.value
   return {
     data: {
-      labels: rows.map((r) => r.label),
+      labels: rows.map((row) => row.label),
       datasets: [
         {
-          label: 'Revenue',
-          data: rows.map((r) => r.revenue),
-          backgroundColor: isAll.value
-            ? data.map((_, i) =>
-                idx >= 0 && i !== idx ? palette.muted : palette.primary,
-              )
-            : palette.primary,
+          label: 'Shipment Volume',
+          data: rows.map((row) => row.shipmentVolume),
+          backgroundColor: palette.shipment,
           borderRadius: 6,
-          maxBarThickness: 38,
+          maxBarThickness: 40,
         },
       ],
     },
-    options: {
-      ...baseChartOptions,
-      scales: {
-        ...baseChartOptions.scales,
-        y: {
-          ...baseChartOptions.scales.y,
-          ticks: {
-            color: palette.mutedStrong,
-            callback: (v: number | string) =>
-              '$' + (Number(v) / 1000).toFixed(0) + 'k',
-          },
-        },
-      },
-    },
+    options: baseChartOptions,
   }
 })
 
-const visitorsChart = computed(() => {
+const shipmentChartOptions = computed(() => ({
+  ...baseChartOptions,
+  plugins: {
+    ...baseChartOptions.plugins,
+    tooltip: {
+      ...baseChartOptions.plugins.tooltip,
+      callbacks: {
+        label: (context: TooltipItem<'bar'>) =>
+          `Operational throughput: ${compact(Number(context.parsed.y))} shipments`,
+        footer: (items: TooltipItem<'bar'>[]) => {
+          if (!items.length) return ''
+          return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
+        },
+        labelColor: (context: TooltipItem<'bar'>) => tooltipChip(context),
+      },
+    },
+  },
+}))
+
+const onTimeChart = computed(() => {
   const rows = filtered.value
   return {
     data: {
-      labels: rows.map((r) => r.label),
+      labels: rows.map((row) => row.label),
       datasets: [
         {
-          label: 'Visitors',
-          data: rows.map((r) => r.visitors),
-          borderColor: palette.accent,
-          backgroundColor: palette.accentSoft,
-          pointBackgroundColor: palette.accent,
+          label: 'On-Time Delivery Rate',
+          data: rows.map((row) => row.onTimeDeliveryRate),
+          borderColor: palette.onTime,
+          backgroundColor: 'rgba(124, 226, 179, 0.18)',
+          pointBackgroundColor: palette.onTime,
           pointRadius: rows.length === 1 ? 6 : 3,
           pointHoverRadius: 6,
           tension: 0.35,
@@ -235,22 +321,51 @@ const visitorsChart = computed(() => {
         },
       ],
     },
-    options: baseChartOptions,
+    options: {
+      ...baseChartOptions,
+      plugins: {
+        ...baseChartOptions.plugins,
+        tooltip: {
+          ...baseChartOptions.plugins.tooltip,
+          callbacks: {
+            label: (context: TooltipItem<'line'>) =>
+              `Service reliability: ${Number(context.parsed.y).toFixed(1)}% on-time`,
+            footer: (items: TooltipItem<'line'>[]) => {
+              if (!items.length) return ''
+              return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
+            },
+            labelColor: (context: TooltipItem<'line'>) => tooltipChip(context),
+          },
+        },
+      },
+      scales: {
+        ...baseChartOptions.scales,
+        y: {
+          ...baseChartOptions.scales.y,
+          suggestedMin: 85,
+          suggestedMax: 100,
+          ticks: {
+            color: palette.mutedStrong,
+            callback: (v: number | string) => `${Number(v).toFixed(0)}%`,
+          },
+        },
+      },
+    },
   }
 })
 
-const conversionsChart = computed(() => {
+const exceptionsChart = computed(() => {
   const rows = filtered.value
   return {
     data: {
-      labels: rows.map((r) => r.label),
+      labels: rows.map((row) => row.label),
       datasets: [
         {
-          label: 'Conversion %',
-          data: rows.map((r) => r.conversions),
-          borderColor: palette.primary,
-          backgroundColor: palette.primarySoft,
-          pointBackgroundColor: palette.primary,
+          label: 'Open Exceptions',
+          data: rows.map((row) => row.openExceptions),
+          borderColor: palette.exceptions,
+          backgroundColor: 'rgba(248, 180, 122, 0.2)',
+          pointBackgroundColor: palette.exceptions,
           pointRadius: rows.length === 1 ? 6 : 3,
           pointHoverRadius: 6,
           tension: 0.35,
@@ -261,13 +376,100 @@ const conversionsChart = computed(() => {
     },
     options: {
       ...baseChartOptions,
+      plugins: {
+        ...baseChartOptions.plugins,
+        tooltip: {
+          ...baseChartOptions.plugins.tooltip,
+          callbacks: {
+            label: (context: TooltipItem<'line'>) =>
+              `Active exceptions: ${compact(Number(context.parsed.y))} cases`,
+            footer: (items: TooltipItem<'line'>[]) => {
+              if (!items.length) return ''
+              return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
+            },
+            labelColor: (context: TooltipItem<'line'>) => tooltipChip(context),
+          },
+        },
+      },
+    },
+  }
+})
+
+const regionalChart = computed(() => {
+  const rows = filtered.value
+  return {
+    data: {
+      labels: rows.map((row) => row.label),
+      datasets: [
+        {
+          label: 'North Ops',
+          data: rows.map((row) => row.regionalPerformance.North),
+          backgroundColor: palette.north,
+          borderRadius: 5,
+          maxBarThickness: 22,
+        },
+        {
+          label: 'South Ops',
+          data: rows.map((row) => row.regionalPerformance.South),
+          backgroundColor: palette.south,
+          borderRadius: 5,
+          maxBarThickness: 22,
+        },
+        {
+          label: 'East Ops',
+          data: rows.map((row) => row.regionalPerformance.East),
+          backgroundColor: palette.east,
+          borderRadius: 5,
+          maxBarThickness: 22,
+        },
+        {
+          label: 'West Ops',
+          data: rows.map((row) => row.regionalPerformance.West),
+          backgroundColor: palette.west,
+          borderRadius: 5,
+          maxBarThickness: 22,
+        },
+      ],
+    },
+    options: {
+      ...baseChartOptions,
+      plugins: {
+        ...baseChartOptions.plugins,
+        tooltip: {
+          ...baseChartOptions.plugins.tooltip,
+          callbacks: {
+            label: (context: TooltipItem<'bar'>) =>
+              `${context.dataset.label}: ${compact(Number(context.parsed.y))} shipments routed`,
+            footer: (items: TooltipItem<'bar'>[]) => {
+              if (!items.length) return ''
+              const index = items[0].dataIndex
+              const monthTotal = items.reduce(
+                (sum, item) => sum + Number(item.parsed.y),
+                0,
+              )
+              return `Executive summary: ${monthSummaryLine(index)} | Regional total ${compact(monthTotal)}`
+            },
+            labelColor: (context: TooltipItem<'bar'>) => tooltipChip(context),
+          },
+        },
+        legend: {
+          display: true,
+          labels: {
+            color: palette.mutedStrong,
+            usePointStyle: true,
+            boxWidth: 10,
+            boxHeight: 8,
+            padding: 14,
+          },
+        },
+      },
       scales: {
         ...baseChartOptions.scales,
         y: {
           ...baseChartOptions.scales.y,
           ticks: {
             color: palette.mutedStrong,
-            callback: (v: number | string) => Number(v).toFixed(1) + '%',
+            callback: (v: number | string) => compact(Number(v)),
           },
         },
       },
@@ -279,12 +481,12 @@ const conversionsChart = computed(() => {
 <template>
   <v-app-bar color="surface" flat density="comfortable" border="b">
     <v-app-bar-title class="font-weight-bold">
-      <v-icon icon="mdi-chart-box-outline" color="primary" class="mr-2" />
-      Protogen Dashboard
+      <v-icon icon="mdi-truck-delivery-outline" color="primary" class="mr-2" />
+      VetBeds
     </v-app-bar-title>
     <template #append>
       <v-select
-        v-model="selected"
+        v-model="selectedMonth"
         :items="monthOptions"
         item-title="title"
         item-value="value"
@@ -298,8 +500,7 @@ const conversionsChart = computed(() => {
   </v-app-bar>
 
   <v-main>
-    <v-container fluid class="pa-6">
-      <!-- Summary cards -->
+    <v-container fluid class="pa-6 pa-sm-8">
       <v-row dense>
         <v-col
           v-for="card in summaryCards"
@@ -315,7 +516,9 @@ const conversionsChart = computed(() => {
               </span>
               <v-icon :icon="card.icon" :color="card.color" />
             </div>
-            <div class="text-h5 font-weight-bold">{{ card.value }}</div>
+            <div class="text-h5 font-weight-bold" :title="card.fullValue">
+              {{ card.value }}
+            </div>
             <div class="d-flex align-center mt-2" style="min-height: 22px">
               <template v-if="card.delta !== null">
                 <v-icon
@@ -335,61 +538,70 @@ const conversionsChart = computed(() => {
                 </span>
               </template>
               <span v-else class="text-caption text-medium-emphasis">
-                {{ isAll ? '12-month total' : '—' }}
+                {{ card.helper }}
               </span>
             </div>
           </v-card>
         </v-col>
       </v-row>
 
-      <!-- Revenue + Visitors charts -->
       <v-row class="mt-2">
         <v-col cols="12" md="6">
           <v-card rounded="lg" elevation="0" border class="pa-4">
             <div class="d-flex align-center justify-space-between mb-3">
               <span class="text-subtitle-1 font-weight-medium">
-                Monthly Revenue
+                Monthly Shipment Volume
               </span>
               <v-icon icon="mdi-chart-bar" color="primary" />
             </div>
             <div style="height: 280px">
-              <Bar :data="revenueChart.data" :options="revenueChart.options" />
+              <Bar :data="shipmentChart.data" :options="shipmentChartOptions" />
             </div>
           </v-card>
         </v-col>
+
         <v-col cols="12" md="6">
           <v-card rounded="lg" elevation="0" border class="pa-4">
             <div class="d-flex align-center justify-space-between mb-3">
               <span class="text-subtitle-1 font-weight-medium">
-                Visitors Over Time
+                On-Time Delivery Rate
               </span>
-              <v-icon icon="mdi-chart-line" color="secondary" />
+              <v-icon icon="mdi-chart-line" color="success" />
             </div>
             <div style="height: 280px">
-              <Line
-                :data="visitorsChart.data"
-                :options="visitorsChart.options"
-              />
+              <Line :data="onTimeChart.data" :options="onTimeChart.options" />
             </div>
           </v-card>
         </v-col>
       </v-row>
 
-      <!-- Conversions area chart -->
       <v-row>
         <v-col cols="12">
           <v-card rounded="lg" elevation="0" border class="pa-4">
             <div class="d-flex align-center justify-space-between mb-3">
               <span class="text-subtitle-1 font-weight-medium">
-                Conversion Trend
+                Open Exceptions Trend
               </span>
-              <v-icon icon="mdi-chart-areaspline" color="primary" />
+              <v-icon icon="mdi-chart-areaspline" color="warning" />
             </div>
             <div style="height: 260px">
-              <Line
-                :data="conversionsChart.data"
-                :options="conversionsChart.options"
-              />
+              <Line :data="exceptionsChart.data" :options="exceptionsChart.options" />
+            </div>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <v-row>
+        <v-col cols="12">
+          <v-card rounded="lg" elevation="0" border class="pa-4">
+            <div class="d-flex align-center justify-space-between mb-3">
+              <span class="text-subtitle-1 font-weight-medium">
+                Regional Performance by Month
+              </span>
+              <v-icon icon="mdi-map-marker-multiple-outline" color="info" />
+            </div>
+            <div style="height: 300px">
+              <Bar :data="regionalChart.data" :options="regionalChart.options" />
             </div>
           </v-card>
         </v-col>
