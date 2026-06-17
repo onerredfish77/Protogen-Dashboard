@@ -42,6 +42,12 @@ Instead of digging through raw data first, stakeholders can understand the narra
 	- Open Exceptions Trend (area)
 	- Regional Performance by Month (grouped bar)
 4. Hover any chart point/bar for richer executive tooltips and context.
+5. **Click any shipment bar or on-time delivery point** to highlight it (magenta) and see the corresponding state distribution on the interactive US map below.
+6. **Click the same chart element again** to clear the highlight and reset to default view.
+7. Interact with the **US State Map**:
+	- View per-state shipment distribution with color intensity (darker = fewer shipments, brighter = more shipments).
+	- Hover any state to see the state name and shipment count in a tooltip.
+	- The map subtitle color changes when a chart element is selected, providing visual feedback of the active selection.
 
 ## Projection Behavior
 
@@ -55,12 +61,31 @@ When a single month is selected:
 
 - Charts focus only on that month (no projection extension).
 
+## Interactive Features
+
+### Chart Selection & Highlighting
+
+- **Click to select**: Click any bar in the Shipment Volume chart or any point in the On-Time Delivery Rate chart to highlight it with a magenta color.
+- **Toggle to clear**: Click the same chart element again to deselect it and return to the default view.
+- **Selection feedback**: The map subtitle color changes to magenta when a chart element is selected, providing visual confirmation.
+
+### US State Map
+
+- **Geographic view**: See shipment distribution across all 50 states with color-coded intensity (blue gradient).
+- **State tooltips**: Hover over any state to see its name and the exact shipment count for the selected month.
+- **Chart-to-map sync**: When you click a chart element, the map displays that month's per-state data with the selection state highlighted.
+- **Interactive updates**: Selecting different months or chart elements instantly updates the map visualization.
+
 ## Tech Stack
 
 - Vue 3 + TypeScript
 - Vuetify 3 (dark theme)
 - Chart.js + vue-chartjs
-- Local JSON dataset in [src/data/metrics.json](src/data/metrics.json)
+- d3-geo + topojson-client (geographic data handling)
+- us-atlas (US state boundary data)
+- Local JSON datasets:
+  - [src/data/metrics.json](src/data/metrics.json) — monthly operational metrics
+  - [src/data/stateShipments.json](src/data/stateShipments.json) — per-state shipment distribution
 
 ## Quick Start
 

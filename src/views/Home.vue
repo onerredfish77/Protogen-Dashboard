@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Bar, Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -15,6 +15,8 @@ import {
   Filler,
 } from 'chart.js'
 import metrics from '../data/metrics.json'
+import stateShipmentsRaw from '../data/stateShipments.json'
+import UsStateMap from '../components/UsStateMap.vue'
 
 ChartJS.register(
   Title,
@@ -44,9 +46,18 @@ interface Metric {
   openExceptions: number
 }
 
+interface StateShipmentMonth {
+  key: string
+  label: string
+  shipmentVolume: number
+  isProjection: boolean
+  states: Record<string, number>
+}
+
 type RegionName = keyof RegionalPerformance
 
 const data = metrics as Metric[]
+const stateShipmentData = stateShipmentsRaw as StateShipmentMonth[]
 
 const projectedMonths = [
   { label: "Jan '26", shipmentVolume: 1895, onTimeDeliveryRate: 96.1, openExceptions: 98 },
@@ -60,6 +71,7 @@ const palette = {
   exceptions: '#F8B47A',
   projection: '#B47FFF',
   projectionSoft: 'rgba(180, 127, 255, 0.15)',
+  selected: '#F962C6',
   north: '#5AB8FF',
   south: '#7CE2B3',
   east: '#B8A1FF',
@@ -71,6 +83,8 @@ const palette = {
 
 const ALL = 'all'
 const selectedMonth = ref<string>(ALL)
+const mapFocusLabel = ref<string | null>(null)
+const selectedChartPart = ref<{ chart: 'shipment' | 'onTime'; label: string } | null>(null)
 
 const monthOptions = computed(() => [
   { title: 'All months', value: ALL },
@@ -87,6 +101,138 @@ const selectedIndex = computed(() => {
 const filtered = computed(() =>
   isAll.value ? data : data.filter((m) => m.month === selectedMonth.value),
 )
+
+watch(selectedMonth, () => {
+  mapFocusLabel.value = null
+  selectedChartPart.value = null
+})
+
+watch(selectedChartPart, (newVal) => {
+  if (!newVal) {
+    mapFocusLabel.value = null
+  }
+})
+
+const stateFipsCodes = stateShipmentData.length
+  ? Object.keys(stateShipmentData[0].states)
+  : []
+
+const stateByMonthKey = stateShipmentData.reduce<Record<string, StateShipmentMonth>>(
+  (acc, row) => {
+    acc[row.key] = row
+    return acc
+  },
+  {},
+)
+
+const stateByLabel = stateShipmentData.reduce<Record<string, StateShipmentMonth>>(
+  (acc, row) => {
+    acc[row.label] = row
+    return acc
+  },
+  {},
+)
+
+function emptyStateValues(): Record<string, number> {
+  return stateFipsCodes.reduce<Record<string, number>>((acc, code) => {
+    acc[code] = 0
+    return acc
+  }, {})
+}
+
+function aggregateStateValues(months: StateShipmentMonth[]): Record<string, number> {
+  const totals = emptyStateValues()
+  for (const month of months) {
+    for (const code of stateFipsCodes) {
+      totals[code] += month.states[code] ?? 0
+    }
+  }
+  return totals
+}
+
+const mapContext = computed(() => {
+  const focusedLabel = mapFocusLabel.value
+  if (focusedLabel && stateByLabel[focusedLabel]) {
+    const month = stateByLabel[focusedLabel]
+    return {
+      values: month.states,
+      subtitle: month.isProjection
+        ? `${month.label} projection from chart selection`
+        : `${month.label} 2025 from chart selection`,
+    }
+  }
+
+  if (isAll.value) {
+    const selectedMonths = data
+      .map((row) => stateByMonthKey[row.month])
+      .filter((row): row is StateShipmentMonth => Boolean(row))
+
+    return {
+      values: aggregateStateValues(selectedMonths),
+      subtitle: 'All months total (Jan-Dec 2025)',
+    }
+  }
+
+  const selected = stateByMonthKey[selectedMonth.value]
+  if (selected) {
+    return {
+      values: selected.states,
+      subtitle: `${selected.label} 2025 total`,
+    }
+  }
+
+  return {
+    values: emptyStateValues(),
+    subtitle: 'No state shipment data',
+  }
+})
+
+const stateMapValues = computed(() => mapContext.value.values)
+const mapSubtitleColor = computed(() =>
+  mapFocusLabel.value ? palette.selected : undefined,
+)
+
+function handleInteractiveChartClick(
+  chartType: 'shipment' | 'onTime',
+  _event: unknown,
+  elements: Array<{ index: number }>,
+  chartInstance: { data: { labels?: unknown[] } },
+) {
+  if (!elements.length) return
+
+  const index = elements[0]?.index ?? -1
+  const labels = chartInstance.data.labels ?? []
+  const value = labels[index]
+  if (typeof value === 'string') {
+    const isAlreadySelected =
+      selectedChartPart.value?.chart === chartType &&
+      selectedChartPart.value?.label === value
+
+    if (isAlreadySelected) {
+      mapFocusLabel.value = null
+      selectedChartPart.value = null
+    } else {
+      mapFocusLabel.value = value
+      selectedChartPart.value = { chart: chartType, label: value }
+    }
+  }
+}
+
+function handleShipmentChartClick(
+  event: unknown,
+  elements: Array<{ index: number }>,
+  chartInstance: { data: { labels?: unknown[] } },
+) {
+  handleInteractiveChartClick('shipment', event, elements, chartInstance)
+}
+
+function handleOnTimeChartClick(
+  event: unknown,
+  elements: Array<{ index: number }>,
+  chartInstance: { data: { labels?: unknown[] } },
+) {
+  handleInteractiveChartClick('onTime', event, elements, chartInstance)
+}
 
 function pctChange(curr: number, prev: number): number | null {
   if (!prev) return null
@@ -273,15 +419,21 @@ const baseChartOptions = {
 
 const shipmentChart = computed(() => {
   const rows = filtered.value
+  const selectedLabel =
+    selectedChartPart.value?.chart === 'shipment' ? selectedChartPart.value.label : null
+
   if (!isAll.value) {
+    const labels = rows.map((r) => r.label)
     return {
       data: {
-        labels: rows.map((r) => r.label),
+        labels,
         datasets: [
           {
             label: 'Shipment Volume',
             data: rows.map((r) => r.shipmentVolume),
-            backgroundColor: palette.shipment,
+            backgroundColor: labels.map((label) =>
+              selectedLabel === label ? palette.selected : palette.shipment,
+            ),
             borderRadius: 6,
             maxBarThickness: 40,
           },
@@ -295,8 +447,12 @@ const shipmentChart = computed(() => {
     ...projectedMonths.map((p) => p.shipmentVolume),
   ]
   const colors: string[] = [
-    ...rows.map(() => palette.shipment),
-    ...projectedMonths.map(() => palette.projection),
+    ...rows.map((row) =>
+      selectedLabel === row.label ? palette.selected : palette.shipment,
+    ),
+    ...projectedMonths.map((projection) =>
+      selectedLabel === projection.label ? palette.selected : palette.projection,
+    ),
   ]
   return {
     data: {
@@ -316,6 +472,7 @@ const shipmentChart = computed(() => {
 
 const shipmentChartOptions = computed(() => ({
   ...baseChartOptions,
+  onClick: handleShipmentChartClick,
   plugins: {
     ...baseChartOptions.plugins,
     legend: isAll.value
@@ -360,6 +517,8 @@ const onTimeChart = computed(() => {
   const rows = filtered.value
   const withProjections = isAll.value
   const lastRow = data[data.length - 1]
+  const selectedLabel =
+    selectedChartPart.value?.chart === 'onTime' ? selectedChartPart.value.label : null
 
   const labels = withProjections
     ? [...rows.map((r) => r.label), ...projectedMonths.map((p) => p.label)]
@@ -384,8 +543,15 @@ const onTimeChart = computed(() => {
           data: actualData,
           borderColor: palette.onTime,
           backgroundColor: 'rgba(124, 226, 179, 0.18)',
-          pointBackgroundColor: palette.onTime,
-          pointRadius: rows.length === 1 ? 6 : 3,
+          pointBackgroundColor: labels.map((label, index) =>
+            selectedLabel === label && actualData[index] !== null
+              ? palette.selected
+              : palette.onTime,
+          ),
+          pointRadius: labels.map((label, index) => {
+            const base = rows.length === 1 ? 6 : 3
+            return selectedLabel === label && actualData[index] !== null ? 7 : base
+          }),
           pointHoverRadius: 6,
           tension: 0.35,
           fill: false,
@@ -399,8 +565,14 @@ const onTimeChart = computed(() => {
                 data: projectedData,
                 borderColor: palette.projection,
                 backgroundColor: palette.projectionSoft,
-                pointBackgroundColor: palette.projection,
-                pointRadius: 3,
+                pointBackgroundColor: labels.map((label, index) =>
+                  selectedLabel === label && projectedData[index] !== null
+                    ? palette.selected
+                    : palette.projection,
+                ),
+                pointRadius: labels.map((label, index) =>
+                  selectedLabel === label && projectedData[index] !== null ? 7 : 3,
+                ),
                 pointHoverRadius: 6,
                 tension: 0.35,
                 fill: false,
@@ -414,6 +586,7 @@ const onTimeChart = computed(() => {
     },
     options: {
       ...baseChartOptions,
+      onClick: handleOnTimeChartClick,
       plugins: {
         ...baseChartOptions.plugins,
         legend: withProjections
@@ -732,6 +905,18 @@ const regionalChart = computed(() => {
             <div style="height: 280px">
               <Line :data="onTimeChart.data" :options="onTimeChart.options" />
             </div>
+          </v-card>
+        </v-col>
+      </v-row>
+
+      <v-row>
+        <v-col cols="12">
+          <v-card rounded="lg" elevation="0" border class="pa-4">
+            <UsStateMap
+              :values-by-fips="stateMapValues"
+              :subtitle="mapContext.subtitle"
+              :subtitle-color="mapSubtitleColor"
+            />
           </v-card>
         </v-col>
       </v-row>
