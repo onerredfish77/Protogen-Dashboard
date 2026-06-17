@@ -167,7 +167,11 @@ function onStateLeave() {
   <div class="state-map-wrap">
     <div class="d-flex align-center justify-space-between mb-3">
       <span class="text-subtitle-1 font-weight-medium">US Shipment Volume by State</span>
-      <span class="text-caption" :style="{ color: subtitleColor ?? 'rgba(255, 255, 255, 0.7)' }">
+      <span
+        class="text-caption state-map-subtitle"
+        :class="{ 'state-map-subtitle--selected': Boolean(subtitleColor) }"
+        :style="subtitleColor ? { backgroundColor: subtitleColor } : { color: 'rgba(255, 255, 255, 0.7)' }"
+      >
         {{ subtitle }}
       </span>
     </div>
@@ -216,6 +220,17 @@ function onStateLeave() {
 <style scoped>
 .state-map-wrap {
   width: 100%;
+}
+
+.state-map-subtitle {
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.state-map-subtitle--selected {
+  color: #ffffff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  line-height: 1.2;
 }
 
 .state-map-canvas {

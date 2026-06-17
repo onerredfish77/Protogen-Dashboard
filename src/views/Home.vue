@@ -835,7 +835,7 @@ const regionalChart = computed(() => {
 
   <v-main>
     <v-container fluid class="pa-6 pa-sm-8">
-      <v-row dense>
+      <v-row>
         <v-col
           v-for="card in summaryCards"
           :key="card.key"
@@ -879,7 +879,7 @@ const regionalChart = computed(() => {
         </v-col>
       </v-row>
 
-      <v-row class="mt-2">
+      <v-row>
         <v-col cols="12" md="6">
           <v-card rounded="lg" elevation="0" border class="pa-4">
             <div class="d-flex align-center justify-space-between mb-3">
