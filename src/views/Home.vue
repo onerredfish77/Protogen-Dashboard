@@ -816,7 +816,7 @@ const regionalChart = computed(() => {
   <v-app-bar color="surface" flat density="comfortable" border="b">
     <v-app-bar-title class="font-weight-bold">
       <v-icon icon="mdi-truck-delivery-outline" color="primary" class="mr-2" />
-      VetBeds
+      FastForward Logistics
     </v-app-bar-title>
     <template #append>
       <v-select
