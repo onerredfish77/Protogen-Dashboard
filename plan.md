@@ -1,11 +1,5 @@
 # Product Brief
 
-Sure! Here is the updated markdown with the feedback incorporated:
-
----
-
-# Product Brief
-
 ## What is this?
 A single-page analytics dashboard showing monthly business metrics for **VetBeds** — a logistics/fulfillment tracking view displaying shipment performance, delivery reliability, regional activity, and exception management.
 
