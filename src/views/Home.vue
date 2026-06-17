@@ -48,10 +48,18 @@ type RegionName = keyof RegionalPerformance
 
 const data = metrics as Metric[]
 
+const projectedMonths = [
+  { label: "Jan '26", shipmentVolume: 1895, onTimeDeliveryRate: 96.1, openExceptions: 98 },
+  { label: "Feb '26", shipmentVolume: 1960, onTimeDeliveryRate: 96.5, openExceptions: 93 },
+  { label: "Mar '26", shipmentVolume: 2025, onTimeDeliveryRate: 96.8, openExceptions: 88 },
+] as const
+
 const palette = {
   shipment: '#5AB8FF',
   onTime: '#7CE2B3',
   exceptions: '#F8B47A',
+  projection: '#B47FFF',
+  projectionSoft: 'rgba(180, 127, 255, 0.15)',
   north: '#5AB8FF',
   south: '#7CE2B3',
   east: '#B8A1FF',
@@ -265,20 +273,44 @@ const baseChartOptions = {
 
 const shipmentChart = computed(() => {
   const rows = filtered.value
+  if (!isAll.value) {
+    return {
+      data: {
+        labels: rows.map((r) => r.label),
+        datasets: [
+          {
+            label: 'Shipment Volume',
+            data: rows.map((r) => r.shipmentVolume),
+            backgroundColor: palette.shipment,
+            borderRadius: 6,
+            maxBarThickness: 40,
+          },
+        ],
+      },
+    }
+  }
+  const labels = [...rows.map((r) => r.label), ...projectedMonths.map((p) => p.label)]
+  const values = [
+    ...rows.map((r) => r.shipmentVolume),
+    ...projectedMonths.map((p) => p.shipmentVolume),
+  ]
+  const colors: string[] = [
+    ...rows.map(() => palette.shipment),
+    ...projectedMonths.map(() => palette.projection),
+  ]
   return {
     data: {
-      labels: rows.map((row) => row.label),
+      labels,
       datasets: [
         {
           label: 'Shipment Volume',
-          data: rows.map((row) => row.shipmentVolume),
-          backgroundColor: palette.shipment,
+          data: values,
+          backgroundColor: colors,
           borderRadius: 6,
           maxBarThickness: 40,
         },
       ],
     },
-    options: baseChartOptions,
   }
 })
 
@@ -286,13 +318,36 @@ const shipmentChartOptions = computed(() => ({
   ...baseChartOptions,
   plugins: {
     ...baseChartOptions.plugins,
+    legend: isAll.value
+      ? {
+          display: true,
+          labels: {
+            color: palette.mutedStrong,
+            usePointStyle: true,
+            pointStyle: 'rectRounded' as const,
+            boxWidth: 12,
+            boxHeight: 10,
+            padding: 14,
+            generateLabels: () => [
+              { text: 'Actual', fillStyle: palette.shipment, strokeStyle: palette.shipment, lineWidth: 0, hidden: false, datasetIndex: 0 },
+              { text: 'Projected', fillStyle: palette.projection, strokeStyle: palette.projection, lineWidth: 0, hidden: false, datasetIndex: 0 },
+            ],
+          },
+        }
+      : { display: false },
     tooltip: {
       ...baseChartOptions.plugins.tooltip,
       callbacks: {
-        label: (context: TooltipItem<'bar'>) =>
-          `Operational throughput: ${compact(Number(context.parsed.y))} shipments`,
+        label: (context: TooltipItem<'bar'>) => {
+          const isProjected = isAll.value && context.dataIndex >= data.length
+          return isProjected
+            ? `Projected: ${compact(Number(context.parsed.y))} shipments`
+            : `Operational throughput: ${compact(Number(context.parsed.y))} shipments`
+        },
         footer: (items: TooltipItem<'bar'>[]) => {
           if (!items.length) return ''
+          const isProjected = isAll.value && items[0].dataIndex >= data.length
+          if (isProjected) return 'Projection · estimated trend'
           return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
         },
         labelColor: (context: TooltipItem<'bar'>) => tooltipChip(context),
@@ -303,13 +358,30 @@ const shipmentChartOptions = computed(() => ({
 
 const onTimeChart = computed(() => {
   const rows = filtered.value
+  const withProjections = isAll.value
+  const lastRow = data[data.length - 1]
+
+  const labels = withProjections
+    ? [...rows.map((r) => r.label), ...projectedMonths.map((p) => p.label)]
+    : rows.map((r) => r.label)
+
+  const actualData: (number | null)[] = withProjections
+    ? [...rows.map((r) => r.onTimeDeliveryRate), ...projectedMonths.map(() => null)]
+    : rows.map((r) => r.onTimeDeliveryRate)
+
+  const projectedData: (number | null)[] = [
+    ...(Array(data.length - 1).fill(null) as null[]),
+    lastRow.onTimeDeliveryRate,
+    ...projectedMonths.map((p) => p.onTimeDeliveryRate),
+  ]
+
   return {
     data: {
-      labels: rows.map((row) => row.label),
+      labels,
       datasets: [
         {
-          label: 'On-Time Delivery Rate',
-          data: rows.map((row) => row.onTimeDeliveryRate),
+          label: 'Actual',
+          data: actualData,
           borderColor: palette.onTime,
           backgroundColor: 'rgba(124, 226, 179, 0.18)',
           pointBackgroundColor: palette.onTime,
@@ -318,20 +390,56 @@ const onTimeChart = computed(() => {
           tension: 0.35,
           fill: false,
           borderWidth: 2,
+          spanGaps: false,
         },
+        ...(withProjections
+          ? [
+              {
+                label: 'Projected',
+                data: projectedData,
+                borderColor: palette.projection,
+                backgroundColor: palette.projectionSoft,
+                pointBackgroundColor: palette.projection,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                fill: false,
+                borderWidth: 2,
+                borderDash: [6, 4],
+                spanGaps: false,
+              },
+            ]
+          : []),
       ],
     },
     options: {
       ...baseChartOptions,
       plugins: {
         ...baseChartOptions.plugins,
+        legend: withProjections
+          ? {
+              display: true,
+              labels: {
+                color: palette.mutedStrong,
+                usePointStyle: true,
+                pointStyle: 'line' as const,
+                boxWidth: 24,
+                padding: 14,
+              },
+            }
+          : { display: false },
         tooltip: {
           ...baseChartOptions.plugins.tooltip,
           callbacks: {
-            label: (context: TooltipItem<'line'>) =>
-              `Service reliability: ${Number(context.parsed.y).toFixed(1)}% on-time`,
+            label: (context: TooltipItem<'line'>) => {
+              const isProjected = context.datasetIndex === 1
+              return isProjected
+                ? `Projected: ${Number(context.parsed.y).toFixed(1)}% on-time`
+                : `Service reliability: ${Number(context.parsed.y).toFixed(1)}% on-time`
+            },
             footer: (items: TooltipItem<'line'>[]) => {
               if (!items.length) return ''
+              if (items[0].datasetIndex === 1) return 'Projection · estimated trend'
               return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
             },
             labelColor: (context: TooltipItem<'line'>) => tooltipChip(context),
@@ -356,13 +464,30 @@ const onTimeChart = computed(() => {
 
 const exceptionsChart = computed(() => {
   const rows = filtered.value
+  const withProjections = isAll.value
+  const lastRow = data[data.length - 1]
+
+  const labels = withProjections
+    ? [...rows.map((r) => r.label), ...projectedMonths.map((p) => p.label)]
+    : rows.map((r) => r.label)
+
+  const actualData: (number | null)[] = withProjections
+    ? [...rows.map((r) => r.openExceptions), ...projectedMonths.map(() => null)]
+    : rows.map((r) => r.openExceptions)
+
+  const projectedData: (number | null)[] = [
+    ...(Array(data.length - 1).fill(null) as null[]),
+    lastRow.openExceptions,
+    ...projectedMonths.map((p) => p.openExceptions),
+  ]
+
   return {
     data: {
-      labels: rows.map((row) => row.label),
+      labels,
       datasets: [
         {
-          label: 'Open Exceptions',
-          data: rows.map((row) => row.openExceptions),
+          label: 'Actual',
+          data: actualData,
           borderColor: palette.exceptions,
           backgroundColor: 'rgba(248, 180, 122, 0.2)',
           pointBackgroundColor: palette.exceptions,
@@ -371,20 +496,56 @@ const exceptionsChart = computed(() => {
           tension: 0.35,
           fill: true,
           borderWidth: 2,
+          spanGaps: false,
         },
+        ...(withProjections
+          ? [
+              {
+                label: 'Projected',
+                data: projectedData,
+                borderColor: palette.projection,
+                backgroundColor: palette.projectionSoft,
+                pointBackgroundColor: palette.projection,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                fill: false,
+                borderWidth: 2,
+                borderDash: [6, 4],
+                spanGaps: false,
+              },
+            ]
+          : []),
       ],
     },
     options: {
       ...baseChartOptions,
       plugins: {
         ...baseChartOptions.plugins,
+        legend: withProjections
+          ? {
+              display: true,
+              labels: {
+                color: palette.mutedStrong,
+                usePointStyle: true,
+                pointStyle: 'line' as const,
+                boxWidth: 24,
+                padding: 14,
+              },
+            }
+          : { display: false },
         tooltip: {
           ...baseChartOptions.plugins.tooltip,
           callbacks: {
-            label: (context: TooltipItem<'line'>) =>
-              `Active exceptions: ${compact(Number(context.parsed.y))} cases`,
+            label: (context: TooltipItem<'line'>) => {
+              const isProjected = context.datasetIndex === 1
+              return isProjected
+                ? `Projected: ${compact(Number(context.parsed.y))} cases`
+                : `Active exceptions: ${compact(Number(context.parsed.y))} cases`
+            },
             footer: (items: TooltipItem<'line'>[]) => {
               if (!items.length) return ''
+              if (items[0].datasetIndex === 1) return 'Projection · estimated trend'
               return `Executive summary: ${monthSummaryLine(items[0].dataIndex)}`
             },
             labelColor: (context: TooltipItem<'line'>) => tooltipChip(context),
