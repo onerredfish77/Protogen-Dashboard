@@ -329,8 +329,8 @@ const shipmentChartOptions = computed(() => ({
             boxHeight: 10,
             padding: 14,
             generateLabels: () => [
-              { text: 'Actual', fillStyle: palette.shipment, strokeStyle: palette.shipment, lineWidth: 0, hidden: false, datasetIndex: 0 },
-              { text: 'Projected', fillStyle: palette.projection, strokeStyle: palette.projection, lineWidth: 0, hidden: false, datasetIndex: 0 },
+              { text: 'Actual', fillStyle: palette.shipment, strokeStyle: palette.shipment, fontColor: palette.mutedStrong, lineWidth: 0, hidden: false, datasetIndex: 0 },
+              { text: 'Projected', fillStyle: palette.projection, strokeStyle: palette.projection, fontColor: palette.mutedStrong, lineWidth: 0, hidden: false, datasetIndex: 0 },
             ],
           },
         }
