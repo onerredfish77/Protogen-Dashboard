@@ -1,6 +1,6 @@
-# VetBeds Logistics Performance Dashboard
+# FastForward Logistics Performance Dashboard
 
-VetBeds is a single-page analytics dashboard that turns monthly fulfillment data into a fast executive view of operational health.
+FastForward Logistics is a single-page analytics dashboard that turns monthly fulfillment data into a fast executive view of operational health.
 
 The experience is designed so visitors can quickly answer three questions:
 

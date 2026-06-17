@@ -12,7 +12,7 @@ Generate a fake dataset as a JSON file (src/data/metrics.json).
 - openExceptions (number, inversely correlates loosely with onTimeDeliveryRate)
 
 ## Layout (Vuetify)
-- v-app-bar at the top with **"VetBeds"** as the dashboard title and a month picker
+- v-app-bar at the top with **"FastForward Logistics"** as the dashboard title and a month picker
 - The month picker should default to showing ALL months
 - When a specific month is selected, all cards and charts filter to that month. When "All" is selected, show the full year.
 - Below the app bar: a row of 4 summary cards (v-card) showing the key metrics - shipment volume, on-time delivery rate, regional performance (top region), open exceptions
